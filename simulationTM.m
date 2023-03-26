@@ -5,27 +5,28 @@
 %ordre, c'est pourquoi il faut faire un système d'équation avec
 %omega(vitesse angulaire) = \dot{theta}
 
-function [t, y] = simulationTM
+function [t, y, Movie] = simulationTM
 close all; clear all;
 
 % Ici on défini les paramètres du pendule
 
-M = 1.0;    % masse du chariot     [kg]
+M = 0.6;    % masse du chariot     [kg]
 m = 0.2;    % masse du pendule     [kg]
 l = 0.4;    %longueur pendule      [m]
 g = 9.81;   % accélération gravifique terrestre [m/s^2]
 
 tref = 1;%2*pi*sqrt(l/g); % temps de reference (= periode petite oscillations)
+
 %-------------------------------------------------------
 % Ici on initialise nos variables
 theta0 = 1;               % angle initial en degrèes
 X0 = 0;                     % position initiale du chariot
 init = [X0, 0, theta0*pi/180, 0];  % [angle initial, vitesse angulaire initiale, position initiale, vitesse initiale]
-trun= 3*tref;             % temps sur lequel on intègre
+trun= 10*tref;             % temps sur lequel on intègre
 dtsnap = tref/24;    % intervale de temps entre l'acquisition de données
 %F = 0;                     % La force du moteur sur le chariot
 
-SlowMow = 0.5; % SlowMow factor for movies visualisation
+SlowMow = 1; % SlowMow factor for movies visualisation
 %-------------------------------------------------------
 %emballage des paramètres dans une structure + calcul du moment d'inertie
 params.M = M;
@@ -38,6 +39,7 @@ params.I = 1/12*m*l^2;
 ODEoptions = odeset('RelTol',1e-8,'AbsTol',1e-10);
 tspan = 0:dtsnap:trun;
 [t, y] = ode45(@(t, y) RHS(t, y, params), tspan, init, ODEoptions);
+%[t, y] = ode45(@(t, y) RHS(t, y, params), tspan, init);
 
 %-------------------------------------------------------
 % angle en fonction du temps
@@ -102,9 +104,11 @@ xlabel('temps [s]')
 ylabel('vitesse angulaire [1/s]')
 
 %énergie mécanique en fonction du temps
+[Etot, EcinTr_ch, EcinTr_pe, EcinRo_pe, Epot_pe] = Emeca(y(:, 2), y(:, 3), y(:, 4), params);
+
 ip = ip+1;
 hplot(ip) = subplot(4, 3, [2, 3]);
-plot(t, Emeca(y(:, 2), y(:, 3), y(:, 4), params), '.')
+plot(t, Etot, '.-')
 hold on
 YLIM = [YLIM; get(gca, 'ylim')];
 htline(ip) = plot(Xline, YLIM(ip, :), 'r--');     %line
@@ -114,7 +118,6 @@ xlabel('temps[s]')
 ylabel('énergie mécanique[J]')
 
 %chaque types d'énergie
-[Etot, EcinTr_ch, EcinTr_pe, EcinRo_pe, Epot_pe] = Emeca(y(:, 2), y(:, 3), y(:, 4), params);
 ip = ip+1;
 hplot(ip) = subplot(4, 3, [11, 12]);
 plot(t, EcinTr_ch, t, EcinTr_pe, t, EcinRo_pe, t, Epot_pe)
@@ -139,6 +142,9 @@ axis([[-1, 1]*2.5*sizeanim(3)/sizeanim(4) -1.1 1.4]*l)
 hold on
 grid on
 xlabel('mètres'), ylabel('mètres')
+
+%initialliser Movie avec un array 1xlenght(t)
+Movie = zeros(size(t));
 
 %Dessiner rail
 xlim = get(gca, 'XLim');    %extraction de la limite de l'axe X
@@ -169,6 +175,8 @@ for it = 1: 1: length(t)
     refreshdata(htline, 'caller')
     drawnow
    
+    %capturer une image pour le film avec getframe() et movie()
+    Movie = getframe(gcf);
     %pause avant le prochain pas de temps(dépend de dt)
     pause(SlowMow*dt(it))
 end
@@ -189,7 +197,7 @@ sintta = sin(y(3));
 den = (M+m) - 0.75*m*costta^2;
 
 %Ici, on définit la force du chariot comme une constante
-F=0;
+F = feedback(y(3, :), y(4, :), y(1, :), y(2, :));
 
 dydt = zeros(4, 1);
 
@@ -240,3 +248,19 @@ chariot = [x-0.05*l, 0, 0.1*l, 0.1*l];
 hchar = rectangle('position', chariot);
 
 hobjs = [hpend, hchar];
+
+function F = feedback(theta, omega, x, v)
+
+%constantes de feedback pour le pendule
+k_pp = -25;
+%k_ip = 0;
+k_dp = -1;
+
+%constantes de feedback pour le chariot
+k_pc = 7;
+%k_ic = 0;
+k_dc = 1;
+
+target = k_pc*x + k_dc*v;
+F = k_pp*theta+target + k_dp*omega;
+F = 0 ;

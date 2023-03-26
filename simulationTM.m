@@ -19,7 +19,7 @@ tref = 1;%2*pi*sqrt(l/g); % temps de reference (= periode petite oscillations)
 
 %-------------------------------------------------------
 % Ici on initialise nos variables
-theta0 = 1;               % angle initial en degrèes
+theta0 = 10;               % angle initial en degrèes
 X0 = 0;                     % position initiale du chariot
 init = [X0, 0, theta0*pi/180, 0];  % [angle initial, vitesse angulaire initiale, position initiale, vitesse initiale]
 trun= 10*tref;             % temps sur lequel on intègre
@@ -176,9 +176,9 @@ for it = 1: 1: length(t)
     drawnow
    
     %capturer une image pour le film avec getframe() et movie()
-    Movie = getframe(gcf);
+    %Movie = getframe(gcf);
     %pause avant le prochain pas de temps(dépend de dt)
-    pause(SlowMow*dt(it))
+    %pause(SlowMow*dt(it))
 end
 
 %-------------------------------------------------------
@@ -262,5 +262,4 @@ k_pc = 7;
 k_dc = 1;
 
 target = k_pc*x + k_dc*v;
-F = k_pp*theta+target + k_dp*omega;
-F = 0 ;
+F = k_pp*theta+target + k_dp*omega;;

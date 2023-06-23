@@ -37,7 +37,15 @@ float PosX = 0;
 const float w = 0.95*sqrt(1.5*9.81/0.49); 
 int encInit = 0;
 
+//variables for accel
+const int Fu = 20;
+int Lcount = 1;
+float V0, tc, t0, tend, Xend, Xt, X0;
+float a, ac;
+
 void setup() {
+
+  //initiate serial communication
   Serial.begin(250000);
   
   //Define Switch and encodeur as input
@@ -51,18 +59,32 @@ void setup() {
   InitStepper();
 
   delay(3000);  //wait for the pendulum to stabilize
-  encInit = 500 - ReadEnc();   //initate the pendulum's angle
   
+  //initate the pendulum's angle
+  encInit = 0;   
+  
+  delay(3000);  //wait for the operator to put the pendulum up
+    
   //set max speed and max acceleration for the stepper
   stepper.setMaxSpeed(4000);
   stepper.setAcceleration(13000000);
+
+  //initiate t0
+  t0 = millis()/1000.0;
+  
 }
 
 void loop() {
+  if (ReadEnc()-encInit > 0){
+    accel(16000);
+  } else if (ReadEnc()-encInit < 0){
+    accel(-16000);
+  } else if (ReadEnc()-encInit == 0){
+    accel(0);
+  }
 }
 
 void InitStepper(){
-
   stepper.setMaxSpeed(1200);
   stepper.setAcceleration(1000);
 
@@ -79,7 +101,6 @@ void InitStepper(){
 }
 
 int ReadEnc(){
-  
   AState = digitalRead(CHA);
   BState = digitalRead(CHB);
   CState = digitalRead(CHC);
@@ -95,10 +116,35 @@ int ReadEnc(){
     if(CState){
         encCount = 0;
     }
-//    Serial.print(encCount);
-//    Serial.print(",  ");
-//    Serial.print(millis());
-//    Serial.println(";");
+    Serial.print(encCount);
+    Serial.print(",  ");
+    Serial.print(millis());
+    Serial.println(";");
   }
   return encCount;
+}
+
+void accel(float a){
+  tc = millis()/1000.0;
+  Xt = 0.5*ac*(tc-t0)*(tc-t0) + V0*(tc-t0) + X0;
+  
+  stepper.moveTo(Xt);
+  stepper.run();
+
+                       //avoid 0/0 division
+  if(Lcount % Fu == 0 && tend-tc != 0){
+    X0 = Xt;
+    V0 = min((Xend-Xt)/(tend-tc), 4000);
+    t0 = tc;
+    ac = a;
+    
+  }
+  
+  Xend = Xt;
+  tend = tc;
+  Lcount++;
+  
+  if (stepper.distanceToGo() > 1){
+    Xt = stepper.currentPosition()+1;
+  }
 }

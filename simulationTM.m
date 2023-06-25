@@ -11,15 +11,15 @@ close all; clear all;
 % Ici on défini les paramètres du pendule
 
 M = 0.6;    % masse du chariot     [kg]
-m = 0.2;    % masse du pendule     [kg]
-l = 0.4;    %longueur pendule      [m]
+m = 0.1;    % masse du pendule     [kg]
+l = 0.15;    %longueur pendule      [m]
 g = 9.81;   % accélération gravifique terrestre [m/s^2]
 
-tref = 1;%2*pi*sqrt(l/g); % temps de reference (= periode petite oscillations)
+tref = 2*pi*sqrt(l/g); % temps de reference (= periode petite oscillations)
 
 %-------------------------------------------------------
 % Ici on initialise nos variables
-theta0 = 10;               % angle initial en degrèes
+theta0 = 180;               % angle initial en degres
 X0 = 0;                     % position initiale du chariot
 init = [X0, 0, theta0*pi/180, 0];  % [angle initial, vitesse angulaire initiale, position initiale, vitesse initiale]
 trun= 10*tref;             % temps sur lequel on intègre
@@ -197,14 +197,17 @@ sintta = sin(y(3));
 den = (M+m) - 0.75*m*costta^2;
 
 %Ici, on définit la force du chariot comme une constante
-F = feedback(y(3, :), y(4, :), y(1, :), y(2, :));
+%F = feedback(y(3, :), y(4, :), y(1, :), y(2, :));
+w0 = sqrt(g/l);
+w = w0*(1-(1e-7)*t);
+F = w*0.25*cos(w*t);
 
 dydt = zeros(4, 1);
 
 dydt(1) = y(2); % vitesse = Xdot
-dydt(2) = (F - 0.5*m*l*sintta*y(4)^2 + 0.75*m*g*costta*sintta)/den;
+dydt(2) = F;
 dydt(3) = y(4); % vitesse angulaire = thetadot
-dydt(4) = 1.5/l*((M+m)*g*sintta + F*costta - 0.5*m*l*costta*sintta*y(4)^2)/den; 
+dydt(4) = 1.5/l*(sintta*g+costta*F); 
 
 
 %-------------------------------------------------------
@@ -262,4 +265,4 @@ k_pc = 7;
 k_dc = 1;
 
 target = k_pc*x + k_dc*v;
-F = k_pp*theta+target + k_dp*omega;;
+F = k_pp*theta+target + k_dp*omega;

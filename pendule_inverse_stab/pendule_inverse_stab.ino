@@ -41,7 +41,8 @@ int encInit = 0;
 const int Fu = 20;
 int Lcount = 1;
 float V0, tc, t0, tend, Xend, Xt, X0;
-float a, ac;
+long a = 0;
+long ac = 0;
 
 void setup() {
 
@@ -61,9 +62,12 @@ void setup() {
   delay(3000);  //wait for the pendulum to stabilize
   
   //initate the pendulum's angle
-  encInit = 0;   
+  encCount = 0;   
+  encInit = 500;
+  Serial.println("INITIATED");
   
   delay(3000);  //wait for the operator to put the pendulum up
+  Serial.println("START");
     
   //set max speed and max acceleration for the stepper
   stepper.setMaxSpeed(4000);
@@ -75,13 +79,8 @@ void setup() {
 }
 
 void loop() {
-  if (ReadEnc()-encInit > 0){
-    accel(16000);
-  } else if (ReadEnc()-encInit < 0){
-    accel(-16000);
-  } else if (ReadEnc()-encInit == 0){
-    accel(0);
-  }
+  a = (ReadEnc()-encInit)*1000;
+  accel2(a);
 }
 
 void InitStepper(){
@@ -116,10 +115,11 @@ int ReadEnc(){
     if(CState){
         encCount = 0;
     }
-    Serial.print(encCount);
+    Serial.print(encCount-encInit);
     Serial.print(",  ");
     Serial.print(millis());
-    Serial.println(";");
+    Serial.print(",  ");
+    Serial.println(a);
   }
   return encCount;
 }
@@ -147,4 +147,22 @@ void accel(float a){
   if (stepper.distanceToGo() > 1){
     Xt = stepper.currentPosition()+1;
   }
+}
+
+void accel2(float a){
+  tc = millis()/1000;
+  Xt = ac*(tc-t0) + V0;
+  Xt = min(Xt, 4000.0);
+  Xt = max(Xt, -4000.0);
+
+  stepper.setSpeed(Xt);
+  stepper.runSpeed();
+
+  if(Lcount % Fu == 0 && tend-tc != 0){
+    V0 = Xt;
+    t0 = tc;
+    ac = a;
+    //Serial.println(V0);
+  }
+  Lcount ++;
 }

@@ -1,15 +1,3 @@
-/*
- * stabiliser un pendule inverse a la verticale:
- * 
- * - attendre l'initialisation du Stepper
- * - attendre que le pendule se stabilise vers sa position 
- *   d'equilibre stable (signal moniteur serie / buzzer)
- * - amener le pendule a la verticale vers le haut 
- *   (signal moniteur serie / buzzer)
- * - stabilisation
- */
-
- 
 #include <AccelStepper.h>
 
 // Define a stepper and the pins it will use
@@ -29,20 +17,22 @@ bool CState = LOW;
 
 bool lastEnc = LOW;
 int encCount = 0;
-
-//variables for stabilisation
-
-float theta = 0.00;
-float PosX = 0;
-const float w = 0.95*sqrt(1.5*9.81/0.49); 
 int encInit = 0;
 
-//variables for accel
-const int Fu = 20;
-int Lcount = 1;
-float V0, tc, t0, tend, Xend, Xt, X0;
-long a = 0;
-long ac = 0;
+//variables for data collection
+const int dataSize = 1000;
+float thetaS [dataSize];
+float thetaDotS [dataSize];
+int tcS [dataSize];
+
+int Lcount = 0;
+int SaveIndex = 0;
+const int saveInterval = 10;
+
+//variables for PID
+float theta;
+float thetaDot, tc;
+float LastTheta, LastTc;
 
 void setup() {
 
@@ -57,30 +47,46 @@ void setup() {
   pinMode(SwPin, INPUT);
 
   //initiate the stepper position
-  InitStepper();
-
-  delay(3000);  //wait for the pendulum to stabilize
-  
-  //initate the pendulum's angle
-  encCount = 0;   
-  encInit = 500;
-  Serial.println("INITIATED");
-  
-  delay(3000);  //wait for the operator to put the pendulum up
-  Serial.println("START");
-    
+//  InitStepper();
+//
+//  delay(3000);  //wait for the pendulum to stabilize
+//  
+//  //initate the pendulum's angle
+//  encCount = 0;   
+//  encInit = 500;
+//  Serial.println("INITIATED");
+//
+//  //wait for the user to start stabilisation
+//  while(!Serial.available()){
+//    Serial.println(ReadEnc());
+//  }
+//
+//  Serial.println("START");  
+      
   //set max speed and max acceleration for the stepper
   stepper.setMaxSpeed(4000);
   stepper.setAcceleration(13000000);
-
-  //initiate t0
-  t0 = millis()/1000.0;
   
 }
 
 void loop() {
-  a = (ReadEnc()-encInit)*1000;
-  accel2(a);
+
+  systEval();
+  
+  if (Lcount<dataSize*saveInterval && Lcount%saveInterval == 0){
+    thetaS [SaveIndex] = theta;
+    thetaDotS [SaveIndex] = thetaDot;
+    tcS [SaveIndex] = millis();
+    
+    SaveIndex++;
+  }
+  
+  if (Lcount>dataSize*saveInterval){
+    displayValues();
+  }
+  
+  Lcount ++;
+  Serial.println(SaveIndex);
 }
 
 void InitStepper(){
@@ -115,54 +121,39 @@ int ReadEnc(){
     if(CState){
         encCount = 0;
     }
-    Serial.print(encCount-encInit);
-    Serial.print(",  ");
-    Serial.print(millis());
-    Serial.print(",  ");
-    Serial.println(a);
+//    Serial.print(encCount-encInit);
+//    Serial.print(",  ");
+//    Serial.print(millis());
+//    Serial.println(",  ");
   }
   return encCount;
 }
 
-void accel(float a){
-  tc = millis()/1000.0;
-  Xt = 0.5*ac*(tc-t0)*(tc-t0) + V0*(tc-t0) + X0;
-  
-  stepper.moveTo(Xt);
-  stepper.run();
-
-                       //avoid 0/0 division
-  if(Lcount % Fu == 0 && tend-tc != 0){
-    X0 = Xt;
-    V0 = min((Xend-Xt)/(tend-tc), 4000);
-    t0 = tc;
-    ac = a;
-    
-  }
-  
-  Xend = Xt;
-  tend = tc;
-  Lcount++;
-  
-  if (stepper.distanceToGo() > 1){
-    Xt = stepper.currentPosition()+1;
-  }
+void displayValues(){  
+    Serial.println("DISPLAYING VALUES");
+    delay(3000);
+    for (int i = 0; i<dataSize; i++){
+      Serial.print(thetaS[i]);
+      Serial.print(",  ");
+      Serial.print(thetaDotS[i], 4);
+      Serial.print(",  ");
+//      Serial.print(XS[i]);
+//      Serial.print(",  ");
+//      Serial.print(XDotS[i]);
+//      Serial.print(",  ");
+      Serial.print(tcS[i]);
+      Serial.println(";");
+        
+    }
+    while(1){
+      
+    }
 }
 
-void accel2(float a){
-  tc = millis()/1000;
-  Xt = ac*(tc-t0) + V0;
-  Xt = min(Xt, 4000.0);
-  Xt = max(Xt, -4000.0);
-
-  stepper.setSpeed(Xt);
-  stepper.runSpeed();
-
-  if(Lcount % Fu == 0 && tend-tc != 0){
-    V0 = Xt;
-    t0 = tc;
-    ac = a;
-    //Serial.println(V0);
-  }
-  Lcount ++;
+void systEval(){
+  theta = ReadEnc()*3.1416/500.0;
+  tc = millis()/1000.0;
+  thetaDot = (theta-LastTheta)/(tc-LastTc);
+  LastTheta = theta;
+  LastTc = tc;
 }

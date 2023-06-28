@@ -19,16 +19,24 @@ bool lastEnc = LOW;
 int encCount = 0;
 int encInit = 0;
 
+//variables for data collection
+const int dataSize = 1000;
+int thetaS [dataSize];
+float thetaDotS [dataSize];
+int tcS [dataSize];
+
+int SaveIndex = 0;
+const int saveInterval = 10;
+
 //variables for PID
-const float radConvert = 3.1416/500.0;
-float theta, thetaDot, tc, LastTheta, LastTc;
-long X, XDot, LastX;
-const float deltaTc = 0.1; 
+float theta;
+float thetaDot, tc;
+float LastTheta, LastTc;
 
 void setup() {
 
   //initiate serial communication
-  Serial.begin(9600);
+  Serial.begin(250000);
   
   //Define Switch and encodeur as input
   pinMode(CHA, INPUT);
@@ -55,22 +63,24 @@ void setup() {
 //  Serial.println("START");  
       
   //set max speed and max acceleration for the stepper
-  stepper.setMaxSpeed(1);
+  stepper.setMaxSpeed(4000);
   stepper.setAcceleration(13000000);
   
 }
 
 void loop() {
 
-  tc = millis()/1000.0;
-  theta = ReadEnc()*radConvert;
-  X = stepper.currentPosition();
-
-  stepper.moveTo(10);
-  stepper.run();
+  systEval();
   
-  if (tc - LastTc > deltaTc){
-    systEval();
+  if (SaveIndex < dataSize && millis()%saveInterval == 0){
+    thetaS [SaveIndex] = theta;
+    thetaDotS [SaveIndex] = thetaDot;
+    tcS [SaveIndex] = millis();
+    
+    SaveIndex++;
+  }
+  
+  if (Lcount>dataSize*saveInterval){
     displayValues();
   }
   
@@ -104,29 +114,43 @@ int ReadEnc(){
         encCount--;
       }
       lastEnc = AState; 
+  
+    if(CState){
+        encCount = 0;
+    }
+//    Serial.print(encCount-encInit);
+//    Serial.print(",  ");
+//    Serial.print(millis());
+//    Serial.println(",  ");
   }
   return encCount;
 }
 
 void displayValues(){  
-    Serial.print("theta: ");
-    Serial.print(theta);
-    Serial.print(", thetaDot: ");
-    Serial.print(thetaDot);
-    Serial.print(",  X: ");
-    Serial.print(X);
-    Serial.print(", XDot: ");
-    Serial.print(XDot);
-    Serial.print(",  time: ");
-    Serial.println(tc);
+    Serial.println("DISPLAYING VALUES");
+    delay(3000);
+    for (int i = 0; i<dataSize; i++){
+      Serial.print(thetaS[i]);
+      Serial.print(",  ");
+      Serial.print(thetaDotS[i], 4);
+      Serial.print(",  ");
+//      Serial.print(XS[i]);
+//      Serial.print(",  ");
+//      Serial.print(XDotS[i]);
+//      Serial.print(",  ");
+      Serial.print(tcS[i]);
+      Serial.println(";");
+        
+    }
+    while(1){
+      
+    }
 }
 
 void systEval(){
+  theta = ReadEnc();
+  tc = millis();
   thetaDot = (theta-LastTheta)/(tc-LastTc);
-  XDot = (X-LastX)/(tc-LastTc);
   LastTheta = theta;
-  LastX = X;
   LastTc = tc;
-
-  
 }

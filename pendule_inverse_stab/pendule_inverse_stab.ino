@@ -4,12 +4,12 @@
 AccelStepper stepper(2, 51, 50);
 
 // Define a pin for the end switch
-const int SwPin = 40;
+#define SwPin 40
 
 //Define pins for the encoder HEDS 5504: Channel A, channel B, channel C
-const int CHA = 31;
-const int CHB = 30;
-const int CHC = 32;
+#define CHA 31
+#define CHB 30
+#define CHC 32
 
 bool AState = LOW;
 bool BState = LOW;
@@ -19,16 +19,27 @@ bool lastEnc = LOW;
 int encCount = 0;
 int encInit = 0;
 
+//variables for to evaluate the system
+#define deltaTc 0.01 
+int theta, LastTheta;
+float tc, LastTc, thetaDot, XDot;
+int X, LastX;
+
 //variables for PID
-const float radConvert = 3.1416/500.0;
-float theta, thetaDot, tc, LastTheta, LastTc;
-long X, XDot, LastX;
-const float deltaTc = 0.1; 
+#define Kpp 100
+#define Kdp 10
+
+#define Kpc -0.001
+#define Kdc -0.001
+
+int targP = 0;
+int er;
+float V, deltaV;
 
 void setup() {
 
   //initiate serial communication
-  Serial.begin(9600);
+  Serial.begin(230400);
   
   //Define Switch and encodeur as input
   pinMode(CHA, INPUT);
@@ -38,24 +49,15 @@ void setup() {
   pinMode(SwPin, INPUT);
 
   //initiate the stepper position
-//  InitStepper();
-//
-//  delay(3000);  //wait for the pendulum to stabilize
-//  
-//  //initate the pendulum's angle
-//  encCount = 0;   
-//  encInit = 500;
-//  Serial.println("INITIATED");
-//
-//  //wait for the user to start stabilisation
-//  while(!Serial.available()){
-//    Serial.println(ReadEnc());
-//  }
-//
-//  Serial.println("START");  
+  InitStepper();
+
+  delay(3000);  //wait for the pendulum to stabilize
+  InitEnc();
+  
+  //initate the pendulum's angle  
       
   //set max speed and max acceleration for the stepper
-  stepper.setMaxSpeed(1);
+  stepper.setMaxSpeed(4000);
   stepper.setAcceleration(13000000);
   
 }
@@ -63,15 +65,15 @@ void setup() {
 void loop() {
 
   tc = millis()/1000.0;
-  theta = ReadEnc()*radConvert;
+  theta = ReadEnc();
   X = stepper.currentPosition();
 
-  stepper.moveTo(10);
-  stepper.run();
+  stepper.setSpeed(V);
+  stepper.runSpeed();
   
   if (tc - LastTc > deltaTc){
     systEval();
-    displayValues();
+    feedback();
   }
   
 }
@@ -104,21 +106,28 @@ int ReadEnc(){
         encCount--;
       }
       lastEnc = AState; 
+      
+      if(CState){
+      encCount = encInit;
+
+    }
   }
   return encCount;
 }
 
-void displayValues(){  
-    Serial.print("theta: ");
+void InitEnc(){
+  while(!CState){
+    ReadEnc();
+  }  
+  encInit = 0;
+}
+
+void OutputValues(){  
+    Serial.print(tc, 3);
+    Serial.print(",");
     Serial.print(theta);
-    Serial.print(", thetaDot: ");
-    Serial.print(thetaDot);
-    Serial.print(",  X: ");
-    Serial.print(X);
-    Serial.print(", XDot: ");
-    Serial.print(XDot);
-    Serial.print(",  time: ");
-    Serial.println(tc);
+    Serial.print(",");
+    Serial.println(X);
 }
 
 void systEval(){
@@ -127,6 +136,13 @@ void systEval(){
   LastTheta = theta;
   LastX = X;
   LastTc = tc;
+}
 
-  
+void feedback(){
+  targP = X*Kpc+XDot*Kdc;
+  er = theta-targP;
+  deltaV = er*Kpp+thetaDot*Kdp; 
+  V += deltaV;
+  V = min(V, 4000);
+  V = max(V, -4000);
 }

@@ -1,0 +1,105 @@
+% Ce code permet de trouver les extremas d'une fonction en localisant le 
+% point le plus haut dans une zone. La taille de la zone peut etre modifiee 
+% pour eliminer les problemes lies au bruit.
+% 
+% l'argument data doit etre une matrice a deux colones
+
+function [amp, per] = Extremas(data)
+
+%calcul de la frequence propre
+l = 0.487;
+g = 9.81;
+omega0 = sqrt(3*g/(2*l));
+per0_th = 2*pi/omega0;
+
+%close all
+figure('name', 'amplitude & frequency analysis');
+
+%la figure doit ocupper 80% de l'écran
+scr = get(0, 'Screensize');
+set(gcf, 'Position', [0.1*scr(3), 0.1*scr(4), 0.8*scr(3), 0.8*scr(4)])
+
+%eliminer phase initiale problematique
+data = data(10:end, :);
+
+% Convertir les unites (temps en secondes, ange en radian/pi)
+Xdata = data(:, 2)*1e-3;
+Ydata = data(:, 1)/500;
+
+%calcul des extremas, en particulier maximas et minimas
+df = diff(Ydata);
+Iext = find(df(1:end-1).*df(2:end) <= 0)+1;
+Imax = find(df(1:end-1).*df(2:end) <= 0 & df(1:end-1) > 0)+1;
+Imin = find(df(1:end-1).*df(2:end) <= 0 & df(1:end-1) < 0)+1;
+
+%Px = Xdata(Iext);
+%Py = Ydata(Iext);
+
+%calcul de la periode et de l'amplitude moyenne par periode
+per = diff(Xdata(Imax));
+amp = (Ydata(Imax(1:end-1))+Ydata(Imax(2:end)))/2;
+% Error estimates
+err_per = max([Xdata(Imax)-Xdata(Imax-1), Xdata(Imax)-Xdata(Imax+1)], [], 2);
+err_amp = Ydata(Imax(1:end-1)) - amp;
+
+%-----------------------------------
+
+%plot de la courbe
+subplot(2, 2, 1)
+plot(Xdata, Ydata, '-k')
+grid
+set(gca, 'FontSize', 16)
+ylabel('angle [rad/pi]', 'Fontsize', 18)
+xlabel('time [s]', 'Fontsize', 18)
+hold on
+%plot des extremas
+hmin = plot(Xdata(Imax), Ydata(Imax), 'or');
+hmax = plot(Xdata(Imin), Ydata(Imin), 'ob');
+legend([hmin, hmax], 'max', 'min')
+
+
+%plot de l'amplitude vs temps
+subplot(2, 2, 2)
+plot((Xdata(Imax(1:end-1))+Xdata(Imax(2:end)))/2, amp, '-go')
+grid
+set(gca, 'FontSize', 16)
+xlabel('time [s]', 'Fontsize', 18)
+ylabel('amplitude [rad/pi]', 'Fontsize', 18)
+hold on
+Xlim = get(gca, 'Xlim');
+
+%plot de periode vs numero de periode
+subplot(2, 2, 3)
+plot(per, 'ro', 'MarkerSize', 8)
+set(gca, 'YLim', [1, 1.5])
+grid
+set(gca, 'FontSize', 16)
+xlabel('periode number', 'Fontsize', 18)
+ylabel('periode [s]', 'Fontsize', 18)
+
+%plot de la periode vs amplitude
+subplot(2, 2, 4)
+%plot(amp, per, 'bo', 'MarkerSize', 8)
+errorbar(amp, per, per-err_per, per+err_per, amp-err_amp, amp+err_amp, ...
+    'bo', 'MarkerSize', 8)
+hold on
+set(gca, 'YLim', [0 3])
+set(gca, 'FontSize', 16)
+xlabel('amplitude [rad/pi]', 'Fontsize', 18)
+ylabel('periode [s]', 'Fontsize', 18)
+
+% plot periode theoriue oscillation d'amplitude arbitraire
+theta_max = linspace(0, pi, 1001);
+per_th = 4*ellipke(sin(theta_max/2).^2)/omega0;
+plot(theta_max/pi, per_th, 'r-')
+
+% plot periode theoriue petite oscillation
+Xlim = get(gca, 'Xlim');
+plot([0, Xlim(2)], [per0_th, per0_th], '--k', 'Linewidth', 2)
+grid
+%text(Xlim(1), per0_th-0.05, 'periode propre')
+
+legend('exp.', 'theor. ampl. arb.', 'theor. petite ampl.')
+
+
+
